@@ -90,6 +90,11 @@ jobs:
           docker push $FULL_IMAGE_NAME
           # Capture the digest for signing and output
           IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $FULL_IMAGE_NAME)
+          echo "Captured Digest: $IMAGE_DIGEST"
+          if [ -z "$IMAGE_DIGEST" ]; then
+            echo "::error::Failed to capture image digest. Check if the image was pushed successfully."
+            exit 1
+          fi
           echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
 
       # Container Image Scan
@@ -139,6 +144,11 @@ jobs:
 
       - name: Deploy to GKE
         run: |
+          # Validate digest
+          if [ -z "${{ needs.build.outputs.image_digest }}" ]; then
+            echo "::error::Image digest from build job is empty. Cannot proceed with deployment."
+            exit 1
+          fi
           # Apply manifests to ensure deployment and service exist
           kubectl apply -f k8s/
           # Update the deployment with the new image digest from the build job
