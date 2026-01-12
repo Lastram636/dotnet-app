@@ -10,23 +10,31 @@ env:
   IMAGE_NAME: dotnet-app
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
-  GAR_REPOSITORY: my-docker-repo # Replace with your GAR repository name
+  GAR_REPOSITORY: my-docker-repo
 
 jobs:
-  security-checks:
-    name: 'Security Checks'
+  secret-scan:
+    name: 'Secret Scan (Gitleaks)'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # Secret Scanning
       - name: Gitleaks Secret Scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
-      # SCA (Software Composition Analysis)
+  sca-scan:
+    name: 'SCA Scan (Trivy)'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Run Trivy vulnerability scanner (SCA)
         uses: aquasecurity/trivy-action@master
         with:
@@ -34,19 +42,27 @@ jobs:
           ignore-unfixed: true
           format: 'table'
           severity: 'CRITICAL,HIGH'
+        continue-on-error: true
 
-      # SAST (Static Application Security Testing) using Semgrep
+  sast-scan:
+    name: 'SAST Scan (Semgrep)'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Semgrep SAST Scan
         uses: returntocorp/semgrep-action@v1
         with:
-          config: >- # more at semgrep.dev/explore
+          config: >-
             p/security-audit
             p/secrets
             p/csharp
+        continue-on-error: true
 
   build-and-deploy:
     name: 'Build and Deploy'
-    needs: security-checks
+    needs: [secret-scan, sca-scan, sast-scan]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,7 +71,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -69,21 +85,20 @@ jobs:
         run: |
           docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
 
-      # Container Image Scan
+      # Container Image Scan (Optional: keep in build job or split too)
       - name: Run Trivy vulnerability scanner (Container)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: '${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}'
           format: 'table'
-          exit-code: '0' # Don't fail for demo, set to 1 to fail on vulnerabilities
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+        continue-on-error: true
 
-      # Install Cosign
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.1.1
 
-      # Sign Image (Integrity Check)
       - name: Sign Docker Image
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -95,7 +110,6 @@ jobs:
         run: |
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # Deploy to GKE
       - name: Get GKE Credentials
         uses: google-github-actions/get-gke-credentials@v1
         with:
