@@ -100,11 +100,8 @@ jobs:
         uses: sigstore/cosign-installer@v3.1.1
 
       - name: Sign Docker Image
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: |
-          cosign sign --key env://COSIGN_PRIVATE_KEY ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -y
+          cosign sign --yes ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Push Docker Image
         run: |
