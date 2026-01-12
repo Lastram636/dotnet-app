@@ -1,0 +1,33 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Welcome to GKE DevSecOps Demo</h1>
+    <p>This application is deployed via a secure pipeline.</p>
+</div>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Update Configuration
+                </div>
+                <div class="card-body">
+                    <form method="post" action="/Home/Update">
+                        <div class="form-group mb-3">
+                            <label for="settingName">Setting Name</label>
+                            <input type="text" class="form-control" id="settingName" name="settingName" placeholder="Enter setting name">
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="settingValue">Value</label>
+                            <input type="text" class="form-control" id="settingValue" name="settingValue" placeholder="Enter value">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
