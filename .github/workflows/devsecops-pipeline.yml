@@ -60,14 +60,15 @@ jobs:
             p/csharp
         continue-on-error: true
 
-  build-and-deploy:
-    name: 'Build and Deploy'
+  build:
+    name: 'Build and Sign Image'
     needs: [secret-scan, sca-scan, sast-scan]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
-      packages: write
+    outputs:
+      image_digest: ${{ steps.build-push.outputs.image_digest }}
 
     steps:
       - name: Checkout
@@ -87,11 +88,11 @@ jobs:
           FULL_IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           docker build -t $FULL_IMAGE_NAME .
           docker push $FULL_IMAGE_NAME
-          # Capture the digest for signing and deployment
+          # Capture the digest for signing and output
           IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $FULL_IMAGE_NAME)
           echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
 
-      # Container Image Scan (Runs against the pushed image)
+      # Container Image Scan
       - name: Run Trivy vulnerability scanner (Container)
         uses: aquasecurity/trivy-action@master
         with:
@@ -113,6 +114,23 @@ jobs:
         run: |
           cosign sign --yes ${{ steps.build-push.outputs.image_digest }}
 
+  deploy:
+    name: 'Deploy to GKE'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
       - name: Get GKE Credentials
         uses: google-github-actions/get-gke-credentials@v1
         with:
@@ -123,6 +141,6 @@ jobs:
         run: |
           # Apply manifests to ensure deployment and service exist
           kubectl apply -f k8s/
-          # Update the deployment with the new image digest
-          kubectl set image deployment/dotnet-app dotnet-app=${{ steps.build-push.outputs.image_digest }}
+          # Update the deployment with the new image digest from the build job
+          kubectl set image deployment/dotnet-app dotnet-app=${{ needs.build.outputs.image_digest }}
           kubectl rollout status deployment/dotnet-app
