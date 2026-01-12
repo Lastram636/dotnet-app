@@ -121,5 +121,8 @@ jobs:
 
       - name: Deploy to GKE
         run: |
+          # Apply manifests to ensure deployment and service exist
+          kubectl apply -f k8s/
+          # Update the deployment with the new image digest
           kubectl set image deployment/dotnet-app dotnet-app=${{ steps.build-push.outputs.image_digest }}
           kubectl rollout status deployment/dotnet-app
