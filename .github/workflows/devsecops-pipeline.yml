@@ -81,15 +81,21 @@ jobs:
       - name: Docker Auth
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
 
-      - name: Build Docker Image
+      - name: Build and Push Docker Image
+        id: build-push
         run: |
-          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          FULL_IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          docker build -t $FULL_IMAGE_NAME .
+          docker push $FULL_IMAGE_NAME
+          # Capture the digest for signing and deployment
+          IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $FULL_IMAGE_NAME)
+          echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
 
-      # Container Image Scan (Optional: keep in build job or split too)
+      # Container Image Scan (Runs against the pushed image)
       - name: Run Trivy vulnerability scanner (Container)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}'
+          image-ref: '${{ steps.build-push.outputs.image_digest }}'
           format: 'table'
           exit-code: '0'
           ignore-unfixed: true
@@ -102,13 +108,10 @@ jobs:
       - name: Initialize Cosign TUF
         run: cosign initialize
 
+      # Sign using the immutable digest
       - name: Sign Docker Image
         run: |
-          cosign sign --yes ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-      - name: Push Docker Image
-        run: |
-          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cosign sign --yes ${{ steps.build-push.outputs.image_digest }}
 
       - name: Get GKE Credentials
         uses: google-github-actions/get-gke-credentials@v1
@@ -118,5 +121,5 @@ jobs:
 
       - name: Deploy to GKE
         run: |
-          kubectl set image deployment/dotnet-app dotnet-app=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          kubectl set image deployment/dotnet-app dotnet-app=${{ steps.build-push.outputs.image_digest }}
           kubectl rollout status deployment/dotnet-app
