@@ -90,17 +90,17 @@ jobs:
           docker build -t $FULL_IMAGE_NAME .
           docker push $FULL_IMAGE_NAME
           
-          # Capture the digest using docker inspect
-          IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $FULL_IMAGE_NAME)
+          # Capture the digest using gcloud (more reliable than docker inspect in GHA)
+          IMAGE_DIGEST=$(gcloud container images describe $FULL_IMAGE_NAME --format='get(image_summary.digest)')
           echo "Captured Digest: $IMAGE_DIGEST"
           
           if [ -z "$IMAGE_DIGEST" ]; then
-            echo "::error::Failed to capture image digest. Check if the image was pushed successfully."
+            echo "::error::Failed to capture image digest via gcloud. Check if the image was pushed successfully."
             exit 1
           fi
           
           echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
-          echo "### Image Built and Pushed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Success :white_check_mark:" >> $GITHUB_STEP_SUMMARY
           echo "- **Image:** $FULL_IMAGE_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- **Digest:** $IMAGE_DIGEST" >> $GITHUB_STEP_SUMMARY
 
