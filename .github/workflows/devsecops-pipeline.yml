@@ -186,10 +186,30 @@ jobs:
             echo "- :white_check_mark: **Status:** Digest read successfully." >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Update Deployment Manifest and Push to Git
+        run: |
+          # Configure Git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Update the image in the deployment.yaml file
+          # We use a pattern match to find the image: line inside the dotnet-app container definition
+          # (Simplistic sed approach assuming standard formatting)
+          sed -i "s|image: .*|image: ${{ env.IMAGE_DIGEST }}|g" k8s/deployment.yaml
+          
+          # Check if there are changes
+          if git diff --quiet; then
+            echo "No changes to commit."
+          else
+            git add k8s/deployment.yaml
+            git commit -m "Update deployment image to ${{ env.IMAGE_DIGEST }} [skip ci]"
+            git push
+            echo "Successfully updated deployment manifest in Git."
+          fi
+
       - name: Deploy to GKE
         run: |
-          # Apply manifests to ensure deployment and service exist
+          # Apply manifests (now containing the correct authenticated image digest)
           kubectl apply -f k8s/
-          # Update the deployment with the new image digest from the artifact
-          kubectl set image deployment/dotnet-app dotnet-app=${{ env.IMAGE_DIGEST }}
+          # Monitor rollout
           kubectl rollout status deployment/dotnet-app
