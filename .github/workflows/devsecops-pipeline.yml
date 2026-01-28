@@ -89,14 +89,20 @@ jobs:
           FULL_IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           docker build -t $FULL_IMAGE_NAME .
           docker push $FULL_IMAGE_NAME
-          # Capture the digest for signing and output
+          
+          # Capture the digest using docker inspect
           IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' $FULL_IMAGE_NAME)
           echo "Captured Digest: $IMAGE_DIGEST"
+          
           if [ -z "$IMAGE_DIGEST" ]; then
             echo "::error::Failed to capture image digest. Check if the image was pushed successfully."
             exit 1
           fi
+          
           echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
+          echo "### Image Built and Pushed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** $FULL_IMAGE_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Digest:** $IMAGE_DIGEST" >> $GITHUB_STEP_SUMMARY
 
       # Container Image Scan
       - name: Run Trivy vulnerability scanner (Container)
@@ -142,6 +148,16 @@ jobs:
         with:
           cluster_name: gke-devsecops-cluster
           location: ${{ env.GCP_REGION }}
+
+      - name: Debug Received Digest
+        run: |
+          echo "### Deployment Debug Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Received Digest:** ${{ needs.build.outputs.image_digest }}" >> $GITHUB_STEP_SUMMARY
+          if [ -z "${{ needs.build.outputs.image_digest }}" ]; then
+            echo "- :x: **Error:** Image digest is empty!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- :white_check_mark: **Status:** Digest received successfully." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Deploy to GKE
         run: |
