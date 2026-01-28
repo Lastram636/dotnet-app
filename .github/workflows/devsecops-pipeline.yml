@@ -86,23 +86,30 @@ jobs:
       - name: Build and Push Docker Image
         id: build-push
         run: |
-          FULL_IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          docker build -t $FULL_IMAGE_NAME .
-          docker push $FULL_IMAGE_NAME
+          # Define image name without tag for digest reference
+          BASE_IMAGE_NAME="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}"
+          TAGGED_IMAGE_NAME="$BASE_IMAGE_NAME:${{ github.sha }}"
           
-          # Capture the digest using gcloud (more reliable than docker inspect in GHA)
-          IMAGE_DIGEST=$(gcloud container images describe $FULL_IMAGE_NAME --format='get(image_summary.digest)')
-          echo "Captured Digest: $IMAGE_DIGEST"
+          docker build -t $TAGGED_IMAGE_NAME .
+          docker push $TAGGED_IMAGE_NAME
           
-          if [ -z "$IMAGE_DIGEST" ]; then
-            echo "::error::Failed to capture image digest via gcloud. Check if the image was pushed successfully."
+          # Capture the digest using gcloud
+          DIGEST=$(gcloud container images describe $TAGGED_IMAGE_NAME --format='get(image_summary.digest)')
+          
+          if [ -z "$DIGEST" ]; then
+            echo "::error::Failed to capture image digest from gcloud."
             exit 1
           fi
           
-          echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
+          # Construct the full immutable reference
+          FULL_IMAGE_REF="$BASE_IMAGE_NAME@$DIGEST"
+          echo "Full Reference: $FULL_IMAGE_REF"
+          
+          echo "image_digest=$FULL_IMAGE_REF" >> $GITHUB_OUTPUT
+          
           echo "### Build Success :white_check_mark:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** $FULL_IMAGE_NAME" >> $GITHUB_STEP_SUMMARY
-          echo "- **Digest:** $IMAGE_DIGEST" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tagged:** $TAGGED_IMAGE_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "- **Immutable Ref:** $FULL_IMAGE_REF" >> $GITHUB_STEP_SUMMARY
 
       # Container Image Scan
       - name: Run Trivy vulnerability scanner (Container)
