@@ -2,9 +2,9 @@ name: 'DevSecOps Pipeline'
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
   workflow_dispatch:
 
 env:
@@ -205,7 +205,7 @@ jobs:
             git add k8s/deployment.yaml
             git commit -m "Update deployment image to ${{ env.IMAGE_DIGEST }} [skip ci]"
             # Explicitly push with token to bypass permission issues
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:master
             echo "Successfully updated deployment manifest in Git."
           fi
 
