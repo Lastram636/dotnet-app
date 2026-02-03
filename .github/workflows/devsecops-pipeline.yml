@@ -164,7 +164,7 @@ jobs:
         uses: google-github-actions/get-gke-credentials@v1
         with:
           cluster_name: gke-devsecops-cluster
-          location: ${{ env.GCP_REGION }}
+          location: ${{ env.GCP_REGION }}-a
 
       - name: Download Digest Artifact
         uses: actions/download-artifact@v4
