@@ -18,7 +18,7 @@ spec:
       - name: dotnet-app
         # This image is a placeholder; CI/CD will update it.
         # Ensure you create the repository first or replace with a valid initial image
-        image: gcr.io/google-samples/hello-app:1.0
+        image: us-central1-docker.pkg.dev/noble-maxim-404408/my-docker-repo/dotnet-app@sha256:f800f823de94988c7806e9d0d82645009a58781b735f3c827a9282c14940dc13
         ports:
         - containerPort: 8080
         resources:
