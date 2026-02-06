@@ -18,7 +18,7 @@ spec:
       - name: dotnet-app
         # This image is a placeholder; CI/CD will update it.
         # Ensure you create the repository first or replace with a valid initial image
-        image: us-central1-docker.pkg.dev/noble-maxim-404408/my-docker-repo/dotnet-app@sha256:6cbb799bc47494c7b1d41705563054ed5f3f299073b32b7d1047f6c37dd9f20d
+        image: us-central1-docker.pkg.dev/noble-maxim-404408/my-docker-repo/dotnet-app@sha256:b4351f49eeb09e1757bd28d5979a3cdec17fe5630ed99d0b0298a9fb184da0c0
         ports:
         - containerPort: 8080
         resources:
